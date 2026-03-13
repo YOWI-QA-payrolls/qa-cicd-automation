@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum CaseStatus {
+  draft
+  active
+  deprecated
+}
+
+enum Priority {
+  low
+  medium
+  high
+  critical
+}
+
+enum PlanStatus {
+  draft
+  active
+  completed
+  archived
+}
+
+enum ResultStatus {
+  passed
+  failed
+  skipped
+  error
+}
+
+enum WorkflowStatus {
+  idle
+  queued
+  in_progress
+  success
+  failure
+  error
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  ownedProjects Project[]      @relation("ProjectOwner")
+  createdCases  TestCase[]     @relation("CaseCreator")
+  assignedPlans TestPlan[]     @relation("PlanAssignee")
+  triggeredRuns TestRun[]      @relation("RunTrigger")
+  triggerLogs   TriggerLog[]   @relation("LogTrigger")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+
+  owner     User             @relation("ProjectOwner", fields: [ownerId], references: [id])
+  testCases TestCase[]
+  testPlans TestPlan[]
+  workflows GithubWorkflow[]
+}
+
+model TestCase {
+  id        String     @id @default(cuid())
+  projectId String
+  title     String
+  steps     String
+  expected  String
+  status    CaseStatus @default(active)
+  tags      String[]
+  priority  Priority   @default(medium)
+  createdBy String
+  createdAt DateTime   @default(now())
+  deletedAt DateTime?
+
+  project        Project         @relation(fields: [projectId], references: [id])
+  creator        User            @relation("CaseCreator", fields: [createdBy], references: [id])
+  planCases      TestPlanCase[]
+  results        TestResult[]
+  automationLink AutomationLink?
+}
+
+model TestPlan {
+  id         String     @id @default(cuid())
+  projectId  String
+  name       String
+  version    String     @default("1.0")
+  assignedTo String?
+  dueDate    DateTime?
+  status     PlanStatus @default(draft)
+  createdAt  DateTime   @default(now())
+  deletedAt  DateTime?
+
+  project   Project        @relation(fields: [projectId], references: [id])
+  assignee  User?          @relation("PlanAssignee", fields: [assignedTo], references: [id])
+  planCases TestPlanCase[]
+  runs      TestRun[]
+}
+
+model TestPlanCase {
+  id         String   @id @default(cuid())
+  planId     String
+  caseId     String
+  orderIndex Int
+  createdAt  DateTime @default(now())
+
+  plan     TestPlan @relation(fields: [planId], references: [id])
+  testCase TestCase @relation(fields: [caseId], references: [id])
+
+  @@unique([planId, caseId])
+}
+
+model TestRun {
+  id          String    @id @default(cuid())
+  planId      String
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  triggeredBy String?
+  source      String
+  githubRunId String?
+  createdAt   DateTime  @default(now())
+
+  plan    TestPlan     @relation(fields: [planId], references: [id])
+  trigger User?        @relation("RunTrigger", fields: [triggeredBy], references: [id])
+  results TestResult[]
+}
+
+model TestResult {
+  id           String       @id @default(cuid())
+  runId        String
+  caseId       String
+  status       ResultStatus
+  notes        String?
+  durationMs   Int?
+  errorMessage String?
+  framework    String?
+  retryCount   Int          @default(0)
+  createdAt    DateTime     @default(now())
+
+  run      TestRun  @relation(fields: [runId], references: [id])
+  testCase TestCase @relation(fields: [caseId], references: [id])
+}
+
+model AutomationLink {
+  id            String        @id @default(cuid())
+  caseId        String        @unique
+  scriptPath    String
+  framework     String
+  lastRunStatus ResultStatus?
+  createdAt     DateTime      @default(now())
+
+  testCase TestCase @relation(fields: [caseId], references: [id])
+}
+
+model GithubWorkflow {
+  id            String         @id @default(cuid())
+  projectId     String
+  repo          String
+  workflowId    String
+  workflowName  String
+  lastTriggered DateTime?
+  lastStatus    WorkflowStatus @default(idle)
+  createdAt     DateTime       @default(now())
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  triggerLogs TriggerLog[]
+}
+
+model TriggerLog {
+  id          String         @id @default(cuid())
+  workflowId  String
+  scope       String
+  triggeredBy String?
+  githubRunId String?
+  status      WorkflowStatus
+  createdAt   DateTime       @default(now())
+
+  githubWorkflow GithubWorkflow @relation(fields: [workflowId], references: [id])
+  user           User?          @relation("LogTrigger", fields: [triggeredBy], references: [id])
+}
