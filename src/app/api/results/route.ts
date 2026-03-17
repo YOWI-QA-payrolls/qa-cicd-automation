@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ResultStatus } from '@prisma/client';
 
 interface ResultPayload {
   caseId: string;
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
     data: results.map((r) => ({
       runId: testRun.id,
       caseId: r.caseId,
-      status: r.status as ResultStatus,
+      status: r.status,
       durationMs: r.durationMs ?? null,
       errorMessage: r.errorMessage ?? null,
       framework: r.framework ?? null,

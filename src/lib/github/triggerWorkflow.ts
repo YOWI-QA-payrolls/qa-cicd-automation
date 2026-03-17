@@ -18,7 +18,7 @@ export async function triggerWorkflow(input: TriggerInput): Promise<string> {
       repo,
       workflow_id: input.workflowId,
       ref: 'main',
-      inputs: { scope: input.scope, planId: input.planId },
+      inputs: { scope: input.scope, planId: input.planId, triggeredBy: input.triggeredBy },
     });
   } catch (err: unknown) {
     const status = (err as { status?: number }).status;
